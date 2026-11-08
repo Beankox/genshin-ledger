@@ -29,7 +29,7 @@ export const ENEMY_DROPS = [
   'Old Handguard', "Recruit's Insignia", 'Slime Condensate', 'Spectral Husk', 'Tattered Warrant', 'Treasure Hoarder Insignia', 'Whopperflower Nectar',
 ];
 export const BOSS_DROPS = [
-  'Accreted Growth', 'Basalt Pillar', 'Cleansing Heart', 'Coiled Core of Life', 'Crystalline Bloom', 'Cyclic Military Kuuvahki Core', 'Dew of Repudiation',
+  'Accreted Growth', 'Artificed Spare Clockwork Component - Coppelia', 'Artificed Spare Clockwork Component - Coppelius', 'Basalt Pillar', 'Cleansing Heart', 'Coiled Core of Life', 'Crystalline Bloom', 'Cyclic Military Kuuvahki Core', 'Dew of Repudiation',
   "Dragonheir's False Fin", "Emperor's Resolution", 'Everflame Seed', 'Evergloom Ring', "Frostnight's Glory", 'Hoarfrost Core', 'Hooked Beak of the Deep Shadow',
   'Hurricane Seed', 'Jeweled Flaming Hilt', 'Juvenile Jade', 'Light Guiding Tetrahedron', 'Lightbearing Scale-Feather', 'Lightning Prism', 'Marionette Core',
   'Mistshroud Helmet', 'Perpetual Caliber', 'Perpetual Heart', 'Plume of the Fallen Watcher', 'Prismatic Severed Tail', 'Pseudo-Stamens', 'Quelled Creeper',
