@@ -13,10 +13,18 @@ const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch 
 const titleFor = (path: string) =>
   path === '/characters' ? 'All characters' : path === '/owned' ? 'Owned' : path === '/unowned' ? 'Unowned' : path === '/data' ? 'Data' : path === '/farming' ? 'Farming planner' : path.startsWith('/character/') ? 'Character' : 'Dashboard';
 
+interface InstallEvent extends Event { prompt(): Promise<void> }
+
 export default function App() {
   const ledger = useLedger();
   const path = useHashRoute();
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
+  const [installEvt, setInstallEvt] = useState<InstallEvent | null>(null);
+  useEffect(() => {
+    const h = (e: Event) => { e.preventDefault(); setInstallEvt(e as InstallEvent); };
+    window.addEventListener('beforeinstallprompt', h);
+    return () => window.removeEventListener('beforeinstallprompt', h);
+  }, []);
   const notify = useCallback((msg: string, error = false) => setToast({ msg, error }), []);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t); } }, [toast]);
 
@@ -66,6 +74,7 @@ export default function App() {
             <div className="meter" role="img" aria-label={`${owned} of ${total} characters owned`}><i style={{ width: `${total ? Math.round((owned / total) * 100) : 0}%` }} /></div>
             <span>{owned} of {total} owned</span>
             <a href="#/data">Back up your data</a>
+            {installEvt && <button className="btn" onClick={() => { void installEvt.prompt(); setInstallEvt(null); }}>Install app</button>}
           </div>
         )}
       </aside>
