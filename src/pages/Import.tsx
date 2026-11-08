@@ -7,6 +7,11 @@ import { parseEnka, parseGood } from '../lib/importers';
 import type { Imported, ParseResult } from '../lib/importers';
 import { Panel } from '../components/Controls';
 
+/** Paste your Cloudflare Worker address here (no slash at the end), e.g. 'https://enka-proxy.yourname.workers.dev'.
+ *  Leave it empty to call Enka.Network directly, which many browsers block. */
+const ENKA_PROXY: string = 'https://enka-proxy.beapatricedeleon325.workers.dev';
+const uidUrl = (id: string) => (ENKA_PROXY ? `${ENKA_PROXY.replace(/\/$/, '')}/uid/${id}` : `https://enka.network/api/uid/${id}`);
+
 const STORE_URL = 'https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/characters.json';
 const HTTP_ERRORS: Record<number, string> = {
   400: 'That UID does not look right. It should be 9 digits.',
@@ -40,7 +45,7 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
     if (id.length < 9) { setError('A UID has 9 digits, for example 800123456.'); return; }
     setBusy(true); setError('');
     try {
-      const res = await fetch(`https://enka.network/api/uid/${id}`);
+      const res = await fetch(uidUrl(id));
       if (!res.ok) throw new Error(HTTP_ERRORS[res.status] ?? `Enka.Network returned error ${res.status}.`);
       const data = await res.json();
       if (!Array.isArray(data?.avatarInfoList) || !data.avatarInfoList.length)
