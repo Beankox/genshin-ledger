@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Download, Sparkles } from 'lucide-react';
 import type { Ledger } from '../hooks/useLedger';
 import type { Progress } from '../types';
 import { clamp, requiredAscension } from '../lib/ledger';
-import { parseEnka, parseGood } from '../lib/importers';
+import { collectHashes, parseEnka, parseGood } from '../lib/importers';
 import type { Imported, ParseResult } from '../lib/importers';
 import { Panel } from '../components/Controls';
 
@@ -13,6 +13,9 @@ const ENKA_PROXY: string = 'https://enka-proxy.beapatricedeleon325.workers.dev';
 const uidUrl = (id: string) => (ENKA_PROXY ? `${ENKA_PROXY.replace(/\/$/, '')}/uid/${id}` : `https://enka.network/api/uid/${id}`);
 
 const STORE_URL = 'https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/characters.json';
+const IDS_KEY = 'ledger-enka-ids'; // remembers "new character #id = Columbina" on this browser
+const loadIds = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(IDS_KEY) ?? '{}') as Record<string, string>; } catch { return {}; } };
+const saveIds = (m: Record<string, string>) => { try { localStorage.setItem(IDS_KEY, JSON.stringify(m)); } catch { /* storage unavailable */ } };
 const HTTP_ERRORS: Record<number, string> = {
   400: 'That UID does not look right. It should be 9 digits.',
   404: 'No player with that UID was found.',
@@ -31,11 +34,13 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [source, setSource] = useState('');
   const [withBuild, setWithBuild] = useState(true);
+  const [q, setQ] = useState('');
 
   const show = (r: ParseResult, from: string) => {
     const known = r.items.filter((i) => nameOf.has(i.id));
-    setFound(known);
-    setUnknown([...r.unknown, ...r.items.filter((i) => !nameOf.has(i.id)).map((i) => i.id)]);
+    const fresh = r.items.filter((i) => i.id.startsWith('enka:'));
+    setFound([...known, ...fresh]);
+    setUnknown([...r.unknown, ...r.items.filter((i) => !nameOf.has(i.id) && !i.id.startsWith('enka:')).map((i) => i.id)]);
     setPicked(new Set(known.map((i) => i.id)));
     setSource(from);
   };
@@ -52,7 +57,14 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
         throw new Error('No characters found. In the game, open your Profile, turn on “Show Character Details”, add characters to your Character Showcase, then try again in a few minutes.');
       let store: Record<string, unknown> | null = null;
       try { const r = await fetch(STORE_URL); if (r.ok) store = await r.json(); } catch { /* talents will be skipped */ }
-      show(parseEnka(data, store), `UID ${id}`);
+      // weapon and artifact set names come from the relay (it looks them up, so the browser does not download a huge file)
+      let names: Record<string, string> | null = null;
+      const hashes = collectHashes(data);
+      if (ENKA_PROXY && hashes.length) {
+        try { const r = await fetch(`${ENKA_PROXY.replace(/\/$/, '')}/names/${hashes.join(',')}`); if (r.ok) names = await r.json(); } catch { /* skipped below */ }
+      }
+      show(parseEnka(data, store, names, loadIds()), `UID ${id}`);
+      if (hashes.length && !names) setError('Characters were found, but weapon and artifact names could not be loaded, so only their levels, constellations and talents will be imported.');
     } catch (e) {
       setError(e instanceof TypeError ? 'Could not reach Enka.Network (you may be offline, or the browser blocked the request). You can still import a scanner file below.' : (e as Error).message);
     } finally { setBusy(false); }
@@ -90,6 +102,20 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
     setFound([]); setUnknown([]); setPicked(new Set());
   };
 
+  // a character this app does not know yet: the player says who it is (remembered for next time)
+  const assign = (oldId: string, newId: string) => {
+    if (!newId) return;
+    saveIds({ ...loadIds(), [oldId.slice(5)]: newId });
+    setFound((f) => f.map((i) => (i.id === oldId ? { ...i, id: newId } : i)));
+    setPicked((s) => new Set(s).add(newId));
+  };
+  const freeNames = [...characters].filter((c) => !found.some((i) => i.id === c.id)).sort((a, b) => a.name.localeCompare(b.name));
+
+  // quick tick list
+  const shown = useMemo(() => characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [characters, q]);
+  const ownedCount = characters.filter((c) => ledger.progressOf(c.id).owned).length;
+  const setOwned = (id: string, owned: boolean) => patchProgress(id, (p) => (p.owned === owned ? p : { ...p, owned }));
+
   const toggle = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const hasBuild = found.some((i) => i.weapon || i.artifacts);
 
@@ -100,17 +126,17 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
 
       <div className="two">
         <Panel title="From your game (UID)" icon={<Download size={18} />}>
-          <p className="muted small">Enter your UID and the ledger reads your in-game <b>Character Showcase</b> through Enka.Network. It brings in level, ascension, constellation, talents and friendship.</p>
+          <p className="muted small">Enter your UID and the ledger reads your in-game <b>Character Showcase</b> through Enka.Network. It brings in level, ascension, constellation, talents, friendship, weapon and artifacts.</p>
           <div className="row mt">
             <input inputMode="numeric" placeholder="UID, e.g. 800123456" aria-label="UID" value={uid} onChange={(e) => setUid(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !busy) void fetchUid(); }} style={{ flex: 1, minWidth: 180 }} />
             <button className="btn primary" onClick={() => void fetchUid()} disabled={busy}>{busy ? 'Looking…' : 'Find my characters'}</button>
           </div>
-          <p className="muted small">The game only shares showcased characters (up to 8) and only if <b>Show Character Details</b> is on in your Profile. Swap which characters are showcased and import again to add more. Your UID is only sent to Enka.Network.</p>
+          <p className="muted small">The game only shares showcased characters (up to 8) and only if <b>Show Character Details</b> is on in your Profile. Swap which characters are showcased and import again to add more, or use the scanner file or the quick tick list below for everyone else. Your UID is only sent to Enka.Network.</p>
         </Panel>
 
         <Panel title="From a scanner file (everyone)" icon={<Sparkles size={18} />}>
-          <p className="muted small">To bring in <b>all</b> characters at once, export a <b>Genshin Optimizer (GOOD) .json</b> file with a scanner such as Inventory Kamera or Irminsul, then choose it here. Weapons and artifacts come along too.</p>
+          <p className="muted small">To bring in <b>all</b> characters at once, export a <b>Genshin Optimizer (GOOD) .json</b> file with a scanner such as Inventory Kamera or Irminsul, then choose it here. Weapons and artifacts come along too, for every character you own.</p>
           <label className="mt">Choose a .json file
             <input type="file" accept=".json,application/json" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
@@ -125,21 +151,48 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
           <ul className="farm-list">
             {found.map((i) => (
               <li key={i.id}>
-                <label className="check" style={{ color: 'inherit' }}>
-                  <input type="checkbox" checked={picked.has(i.id)} onChange={() => toggle(i.id)} />
-                  <span><b>{nameOf.get(i.id)}</b><small>Lv {i.level} · C{i.constellation}{i.talents ? ` · Talents ${i.talents.join('/')}` : ''}{i.weapon ? ` · ${i.weapon.name}` : ''}</small></span>
-                </label>
+                {nameOf.has(i.id) ? (
+                  <label className="check" style={{ color: 'inherit' }}>
+                    <input type="checkbox" checked={picked.has(i.id)} onChange={() => toggle(i.id)} />
+                    <span><b>{nameOf.get(i.id)}</b><small>Lv {i.level} · C{i.constellation}{i.talents ? ` · Talents ${i.talents.join('/')}` : ''}{i.weapon ? ` · ${i.weapon.name}` : ''}</small></span>
+                  </label>
+                ) : (
+                  <div style={{ flex: 1 }}>
+                    <b>New character (#{i.id.slice(5)})</b>
+                    <small className="muted" style={{ display: 'block' }}>Lv {i.level} · C{i.constellation}{i.talents ? ` · Talents ${i.talents.join('/')}` : ''}. This app does not know this ID yet. Who is it?</small>
+                    <select aria-label="Which character is this?" value="" onChange={(e) => assign(i.id, e.target.value)} style={{ marginTop: 6 }}>
+                      <option value="">Choose the character…</option>
+                      {freeNames.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
           {hasBuild && <label className="check mt" style={{ color: 'inherit' }}><input type="checkbox" checked={withBuild} onChange={(e) => setWithBuild(e.target.checked)} /> Also import weapons and artifacts (replaces the ones saved for these characters)</label>}
           {unknown.length > 0 && <p className="muted small">Not recognised, skipped: {unknown.join(', ')}.</p>}
           <div className="actions">
-            <button className="btn" onClick={() => { setFound([]); setUnknown([]); }}>Cancel</button>
+            <button className="btn" onClick={() => { setFound([]); setUnknown([]); setPicked(new Set()); }}>Cancel</button>
             <button className="btn primary" onClick={apply} disabled={!picked.size}>Import {picked.size} character{picked.size === 1 ? '' : 's'}</button>
           </div>
         </div>
       )}
+
+      <div className="panel mt">
+        <h2><Sparkles size={18} /> Quick tick: who do you own?</h2>
+        <p className="muted small">The game does not let websites read your full roster, so tap every character you own here ({ownedCount} of {characters.length} ticked). Fill in levels and builds with the imports above, or later.</p>
+        <div className="row mt">
+          <input type="search" aria-label="Filter by name" placeholder="Filter by name" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
+          <button className="btn" onClick={() => shown.forEach((c) => setOwned(c.id, true))}>Tick all shown</button>
+          <button className="btn" onClick={() => shown.forEach((c) => setOwned(c.id, false))}>Untick all shown</button>
+        </div>
+        <div className="chips">
+          {shown.map((c) => {
+            const on = ledger.progressOf(c.id).owned;
+            return <button key={c.id} className={`chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setOwned(c.id, !on)}>{c.name}</button>;
+          })}
+        </div>
+      </div>
     </div>
   );
 }
