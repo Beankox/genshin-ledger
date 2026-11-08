@@ -20,7 +20,7 @@ export const SUBSTATS = ['HP', 'ATK', 'DEF', 'HP%', 'ATK%', 'DEF%', 'Energy Rech
 
 export const ARTIFACT_SETS = [
   "Gladiator's Finale", "Wanderer's Troupe", 'Noblesse Oblige', 'Bloodstained Chivalry', 'Maiden Beloved',
-  'Viridescent Venerer', 'Archaic Petra', 'Retracting Bolide', 'Thundersoother', 'Thundering Fury', 'Lavawalker',
+  'Viridescent Venerer', 'Archaic Petra', 'Retracing Bolide', 'Thundersoother', 'Thundering Fury', 'Lavawalker',
   'Crimson Witch of Flames', 'Blizzard Strayer', 'Heart of Depth', 'Tenacity of the Millelith', 'Pale Flame',
   "Shimenawa's Reminiscence", 'Emblem of Severed Fate', 'Husk of Opulent Dreams', 'Ocean-Hued Clam',
   'Vermillion Hereafter', 'Echoes of an Offering', 'Deepwood Memories', 'Gilded Dreams', 'Desert Pavilion Chronicle',
