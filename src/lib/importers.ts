@@ -54,13 +54,17 @@ const ENKA_SLOT: Record<string, SlotKey> = {
 const enkaValue = (stat: string, v: unknown) => { const n = Number(v); return Number.isFinite(n) ? String(stat.endsWith('%') ? Math.round(n * 10) / 10 : Math.round(n)) : ''; };
 
 /** Name hashes of the weapons and artifact sets in an Enka response (to be turned into names). */
-export function collectHashes(data: any): string[] {
+export function collectHashes(data: any, store?: Record<string, any> | null): string[] {
   const out = new Set<string>();
-  for (const a of Array.isArray(data?.avatarInfoList) ? data.avatarInfoList : [])
+  for (const a of Array.isArray(data?.avatarInfoList) ? data.avatarInfoList : []) {
+    // character name, so characters newer than ENKA_IDS can still be matched by name
+    const ch = store?.[`${a?.avatarId}-${a?.skillDepotId}`] ?? store?.[String(a?.avatarId)];
+    if (ch?.NameTextMapHash) out.add(String(ch.NameTextMapHash));
     for (const e of Array.isArray(a?.equipList) ? a.equipList : []) {
       if (e?.flat?.itemType === 'ITEM_WEAPON' && e.flat.nameTextMapHash) out.add(String(e.flat.nameTextMapHash));
       if (e?.flat?.itemType === 'ITEM_RELIQUARY' && e.flat.setNameTextMapHash) out.add(String(e.flat.setNameTextMapHash));
     }
+  }
   return [...out];
 }
 
@@ -73,15 +77,20 @@ const ival = (m: any, key: string) => Number(m?.[key]?.ival ?? m?.[key]?.val ?? 
  */
 export function parseEnka(
   data: any, store: Record<string, any> | null, names?: Record<string, string> | null, extraIds?: Record<string, string>,
+  roster?: { id: string; name: string }[],
 ): ParseResult {
   const items: Imported[] = [], unknown: string[] = [];
   for (const a of Array.isArray(data?.avatarInfoList) ? data.avatarInfoList : []) {
     // Characters newer than this app's list come back as "enka:<avatarId>"; the Import page lets the player say who they are.
-    const id = ENKA_IDS[String(a?.avatarId)] ?? extraIds?.[String(a?.avatarId)] ?? `enka:${a?.avatarId}`;
+    const entry = store?.[`${a.avatarId}-${a.skillDepotId}`] ?? store?.[String(a.avatarId)];
+    // 1) built-in table, 2) a choice the player made before, 3) the character's English name matched against this app's list
+    const nameHash = entry?.NameTextMapHash;
+    const gameName = nameHash != null ? names?.[String(nameHash)] : undefined;
+    const byName = gameName ? roster?.find((c) => norm(c.name) === norm(gameName))?.id : undefined;
+    const id = ENKA_IDS[String(a?.avatarId)] ?? extraIds?.[String(a?.avatarId)] ?? byName ?? `enka:${a?.avatarId}`;
     const level = ival(a.propMap, '4001');
     if (!Number.isFinite(level)) continue;
     const asc = ival(a.propMap, '1002');
-    const entry = store?.[`${a.avatarId}-${a.skillDepotId}`] ?? store?.[String(a.avatarId)];
     const order: unknown = entry?.SkillOrder;
     const lv = (sid: unknown) => clamp(Number(a.skillLevelMap?.[String(sid)] ?? 1), 1, 10);
     // Enka's character list is out of date for the newest characters; then the three skills in ascending id order are normal / skill / burst.
@@ -163,59 +172,6 @@ export function parseGood(data: any, roster: { id: string; name: string }[]): Pa
       const subs = (Array.isArray(a.substats) ? a.substats : []).slice(0, 4).map((s: any) => ({ stat: STAT[s?.key] ?? '', value: STAT[s?.key] ? statValue(s.key, s.value) : '' }));
       while (subs.length < 4) subs.push({ stat: '', value: '' });
       pieces[a.slotKey as SlotKey] = { set: nameFrom(String(a.setKey ?? ''), ARTIFACT_SETS), main: STAT[a.mainStatKey] ?? '', subs };
-    }
-    if (Object.keys(pieces).length) item.artifacts = pieces;
-    items.push(item);
-  }
-  return { items, unknown };
-}
-
-/* ---------------- HoYoLAB (full roster) ---------------- */
-
-const HOYO_SLOT: Record<number, SlotKey> = { 1: 'flower', 2: 'plume', 3: 'sands', 4: 'goblet', 5: 'circlet' };
-const hoyoStat = (name: unknown, value: unknown): string => {
-  const n = norm(String(name ?? '')), pct = String(value ?? '').includes('%');
-  if (n === 'hp') return pct ? 'HP%' : 'HP';
-  if (n === 'atk') return pct ? 'ATK%' : 'ATK';
-  if (n === 'def') return pct ? 'DEF%' : 'DEF';
-  if (n === 'elementalmastery') return 'Elemental Mastery';
-  if (n.startsWith('energyrecharge')) return 'Energy Recharge%';
-  if (n.startsWith('critrate')) return 'CRIT Rate%';
-  if (n.startsWith('critdmg')) return 'CRIT DMG%';
-  if (n.startsWith('healingbonus')) return 'Healing Bonus%';
-  const el = n.match(/^(physical|pyro|hydro|anemo|electro|dendro|cryo|geo)dmg/);
-  return el ? `${el[1][0].toUpperCase()}${el[1].slice(1)} DMG%` : '';
-};
-const hoyoNum = (stat: string, v: unknown) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? String(stat.endsWith('%') ? Math.round(n * 10) / 10 : Math.round(n)) : ''; };
-
-/** `data` is the Worker's /roster response (HoYoLAB character list). */
-export function parseHoyolab(data: any, extraIds?: Record<string, string>): ParseResult {
-  const items: Imported[] = [], unknown: string[] = [];
-  for (const c of Array.isArray(data?.data?.list) ? data.data.list : []) {
-    const b = c?.base ?? {};
-    const id = ENKA_IDS[String(b.id)] ?? extraIds?.[String(b.id)] ?? `enka:${b.id}`;
-    const level = Number(b.level);
-    if (!Number.isFinite(level)) continue;
-    if (items.some((i) => i.id === id)) continue;
-    const active = (Array.isArray(c.skills) ? c.skills : []).filter((s: any) => s?.skill_type === 1).slice(0, 3);
-    const item: Imported = {
-      id, level: clamp(level, 1, 90), ascension: clamp(Math.max(0, Math.ceil((level - 20) / 10)), 0, 6),
-      constellation: clamp(Number(b.actived_constellation_num ?? 0), 0, 6),
-      talents: active.length === 3 ? (active.map((s: any) => clamp(Number(s.level ?? 1), 1, 10)) as [number, number, number]) : undefined,
-      friendship: Number(b.fetter) > 0 ? clamp(Number(b.fetter), 1, 10) : undefined,
-    };
-    if (c.weapon?.name) item.weapon = { name: String(c.weapon.name), level: clamp(Number(c.weapon.level ?? 1), 1, 90), refinement: clamp(Number(c.weapon.affix_level ?? 1), 1, 5) };
-    const pieces: Partial<Record<SlotKey, ArtifactPiece>> = {};
-    for (const r of Array.isArray(c.relics) ? c.relics : []) {
-      const slot = HOYO_SLOT[Number(r?.pos)];
-      if (!slot) continue;
-      const main = hoyoStat(r.main_property?.name, r.main_property?.value);
-      const subs = (Array.isArray(r.sub_property_list) ? r.sub_property_list : []).slice(0, 4).map((x: any) => {
-        const stat = hoyoStat(x?.name, x?.value);
-        return { stat, value: stat ? hoyoNum(stat, x.value) : '' };
-      });
-      while (subs.length < 4) subs.push({ stat: '', value: '' });
-      pieces[slot] = { set: String(r.set?.name ?? ''), main, subs };
     }
     if (Object.keys(pieces).length) item.artifacts = pieces;
     items.push(item);
