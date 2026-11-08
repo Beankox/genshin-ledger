@@ -40,6 +40,30 @@ const ENKA_IDS: Record<string, string> = {
   10000122: 'nefer', 10000123: 'durin', 10000124: 'jahoda',
 };
 
+const ENKA_STAT: Record<string, string> = {
+  FIGHT_PROP_HP: 'HP', FIGHT_PROP_HP_PERCENT: 'HP%', FIGHT_PROP_ATTACK: 'ATK', FIGHT_PROP_ATTACK_PERCENT: 'ATK%',
+  FIGHT_PROP_DEFENSE: 'DEF', FIGHT_PROP_DEFENSE_PERCENT: 'DEF%', FIGHT_PROP_ELEMENT_MASTERY: 'Elemental Mastery',
+  FIGHT_PROP_CHARGE_EFFICIENCY: 'Energy Recharge%', FIGHT_PROP_CRITICAL: 'CRIT Rate%', FIGHT_PROP_CRITICAL_HURT: 'CRIT DMG%',
+  FIGHT_PROP_HEAL_ADD: 'Healing Bonus%', FIGHT_PROP_PHYSICAL_ADD_HURT: 'Physical DMG%', FIGHT_PROP_FIRE_ADD_HURT: 'Pyro DMG%',
+  FIGHT_PROP_WATER_ADD_HURT: 'Hydro DMG%', FIGHT_PROP_WIND_ADD_HURT: 'Anemo DMG%', FIGHT_PROP_ELEC_ADD_HURT: 'Electro DMG%',
+  FIGHT_PROP_GRASS_ADD_HURT: 'Dendro DMG%', FIGHT_PROP_ICE_ADD_HURT: 'Cryo DMG%', FIGHT_PROP_ROCK_ADD_HURT: 'Geo DMG%',
+};
+const ENKA_SLOT: Record<string, SlotKey> = {
+  EQUIP_BRACER: 'flower', EQUIP_NECKLACE: 'plume', EQUIP_SHOES: 'sands', EQUIP_RING: 'goblet', EQUIP_DRESS: 'circlet',
+};
+const enkaValue = (stat: string, v: unknown) => { const n = Number(v); return Number.isFinite(n) ? String(stat.endsWith('%') ? Math.round(n * 10) / 10 : Math.round(n)) : ''; };
+
+/** Name hashes of the weapons and artifact sets in an Enka response (to be turned into names). */
+export function collectHashes(data: any): string[] {
+  const out = new Set<string>();
+  for (const a of Array.isArray(data?.avatarInfoList) ? data.avatarInfoList : [])
+    for (const e of Array.isArray(a?.equipList) ? a.equipList : []) {
+      if (e?.flat?.itemType === 'ITEM_WEAPON' && e.flat.nameTextMapHash) out.add(String(e.flat.nameTextMapHash));
+      if (e?.flat?.itemType === 'ITEM_RELIQUARY' && e.flat.setNameTextMapHash) out.add(String(e.flat.setNameTextMapHash));
+    }
+  return [...out];
+}
+
 const ival = (m: any, key: string) => Number(m?.[key]?.ival ?? m?.[key]?.val ?? NaN);
 
 /**
@@ -47,24 +71,54 @@ const ival = (m: any, key: string) => Number(m?.[key]?.ival ?? m?.[key]?.val ?? 
  * `store` is Enka's characters.json (used to find which skill is the normal attack / skill / burst). It may be null.
  * Only characters on the player's in-game Character Showcase are in the response.
  */
-export function parseEnka(data: any, store: Record<string, any> | null): ParseResult {
+export function parseEnka(
+  data: any, store: Record<string, any> | null, names?: Record<string, string> | null, extraIds?: Record<string, string>,
+): ParseResult {
   const items: Imported[] = [], unknown: string[] = [];
   for (const a of Array.isArray(data?.avatarInfoList) ? data.avatarInfoList : []) {
-    const id = ENKA_IDS[String(a?.avatarId)];
-    if (!id) { unknown.push(`Character #${a?.avatarId}`); continue; }
+    // Characters newer than this app's list come back as "enka:<avatarId>"; the Import page lets the player say who they are.
+    const id = ENKA_IDS[String(a?.avatarId)] ?? extraIds?.[String(a?.avatarId)] ?? `enka:${a?.avatarId}`;
     const level = ival(a.propMap, '4001');
     if (!Number.isFinite(level)) continue;
     const asc = ival(a.propMap, '1002');
     const entry = store?.[`${a.avatarId}-${a.skillDepotId}`] ?? store?.[String(a.avatarId)];
     const order: unknown = entry?.SkillOrder;
     const lv = (sid: unknown) => clamp(Number(a.skillLevelMap?.[String(sid)] ?? 1), 1, 10);
-    const talents = Array.isArray(order) && order.length >= 3 ? ([lv(order[0]), lv(order[1]), lv(order[2])] as [number, number, number]) : undefined;
+    // Enka's character list is out of date for the newest characters; then the three skills in ascending id order are normal / skill / burst.
+    const skillIds = Object.keys(a.skillLevelMap ?? {}).map(Number).sort((x, y) => x - y);
+    const talents = Array.isArray(order) && order.length >= 3
+      ? ([lv(order[0]), lv(order[1]), lv(order[2])] as [number, number, number])
+      : skillIds.length === 3 ? ([lv(skillIds[0]), lv(skillIds[1]), lv(skillIds[2])] as [number, number, number]) : undefined;
     const fr = Number(a.fetterInfo?.expLevel);
-    items.push({
+    const item: Imported = {
       id, level: clamp(level, 1, 90), ascension: clamp(asc, 0, 6),
       constellation: clamp(Array.isArray(a.talentIdList) ? a.talentIdList.length : 0, 0, 6),
       talents, friendship: Number.isFinite(fr) && fr > 0 ? clamp(fr, 1, 10) : undefined,
-    });
+    };
+    // weapon and artifacts (names need the lookup; without it nothing is imported here, so saved builds are never blanked)
+    const pieces: Partial<Record<SlotKey, ArtifactPiece>> = {};
+    for (const e of names && Array.isArray(a.equipList) ? a.equipList : []) {
+      const f = e?.flat;
+      if (f?.itemType === 'ITEM_WEAPON' && e.weapon) {
+        const name = names?.[String(f.nameTextMapHash)];
+        if (name) {
+          const aff = Object.values(e.weapon.affixMap ?? {})[0];
+          item.weapon = { name, level: clamp(Number(e.weapon.level ?? 1), 1, 90), refinement: clamp(Number(aff ?? 0) + 1, 1, 5) };
+        }
+      } else if (f?.itemType === 'ITEM_RELIQUARY') {
+        const slot = ENKA_SLOT[f.equipType];
+        if (!slot) continue;
+        const mainStat = ENKA_STAT[f.reliquaryMainstat?.mainPropId] ?? '';
+        const subs = (Array.isArray(f.reliquarySubstats) ? f.reliquarySubstats : []).slice(0, 4).map((x: any) => {
+          const stat = ENKA_STAT[x?.appendPropId] ?? '';
+          return { stat, value: stat ? enkaValue(stat, x.statValue) : '' };
+        });
+        while (subs.length < 4) subs.push({ stat: '', value: '' });
+        pieces[slot] = { set: names?.[String(f.setNameTextMapHash)] ?? '', main: mainStat, subs };
+      }
+    }
+    if (Object.keys(pieces).length) item.artifacts = pieces;
+    items.push(item);
   }
   return { items, unknown };
 }
