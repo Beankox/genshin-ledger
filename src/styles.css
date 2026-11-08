@@ -165,3 +165,59 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .needs { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; }
 .needs li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
 .needs li b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Farming planner ---------- */
+.side nav em { font-style: normal; } .lbl-s { display: none; }
+.check { display: flex; align-items: center; gap: 8px; color: #d5d8f5; font-size: 15px; cursor: pointer; }
+.check input { width: auto; min-height: 0; margin: 0; accent-color: var(--gold); }
+.note { background: rgba(232, 207, 142, .14); border: 1px dashed var(--gold-lt); color: #f6e3a8; border-radius: 12px; padding: 10px 14px; margin: 14px 0 0; font-size: 14px; }
+.farm-list { list-style: none; margin: 0; padding: 0; }
+.farm-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.farm-list li:first-child { border-top: 0; }
+.farm-list b { display: block; } .farm-list small { display: block; color: var(--mute); font-size: 13px; }
+.farm-list .sched { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.farm-list .amt { text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; max-width: 52%; }
+.pill.today { color: #fff; background: var(--gold); border-color: var(--gold); padding: 0 8px; font-size: 12px; }
+
+/* ---------- Mobile ---------- */
+html { -webkit-text-size-adjust: 100%; }
+main { min-width: 0; }
+@media (max-width: 820px) {
+  /* sidebar becomes a bottom tab bar */
+  .side { position: fixed; z-index: 40; top: auto; left: 0; right: 0; bottom: 0; height: auto; overflow: visible; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: 0; border-bottom: 0; border-top: 2px solid var(--gold); background: rgba(8, 11, 40, .97); box-shadow: 0 -6px 20px rgba(0, 0, 0, .35); }
+  .brand, .sub { display: none; }
+  .side nav { flex-direction: row; justify-content: space-around; gap: 0; overflow: visible; }
+  .side nav a, .side nav a:hover { flex: 1; min-width: 0; flex-direction: column; justify-content: center; align-items: center; gap: 2px; padding: 6px 2px; text-align: center;
+    border-left: 0; border-top: 3px solid transparent; border-radius: 8px; }
+  .side nav a.on { border-top-color: var(--gold-lt); }
+  .side nav a span { flex-direction: column; gap: 2px; font-size: 11px; line-height: 1.1; }
+  .side nav small { display: none; }
+  .lbl { display: none; } .lbl-s { display: block; }
+  main { padding: 18px 14px calc(92px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(86px + env(safe-area-inset-bottom)); max-width: calc(100% - 24px); text-align: center; }
+}
+@media (max-width: 600px) {
+  h1 { font-size: 30px; }
+  .lead { margin-bottom: 16px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .card-meta { padding: 8px 10px 10px; } .card-meta b { font-size: 17px; }
+  .page-head .btn { width: 100%; justify-content: center; }
+  .tools { grid-template-columns: 1fr 1fr; } .search { grid-column: 1 / -1; }
+  .hero { justify-content: center; text-align: center; } .ring-svg { width: 140px; height: 140px; } .stat-grid { min-width: 0; width: 100%; }
+  .panel { padding: 16px; }
+  .field { flex-wrap: wrap; }
+  .two { grid-template-columns: 1fr; }
+  .actions .btn { flex: 1; justify-content: center; }
+  .backdrop { padding: 10px; align-items: end; } .modal { max-height: 92vh; overflow: auto; }
+  .farm-list .amt { max-width: 48%; }
+}
+/* comfortable touch targets */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; padding: 8px 18px; }
+  .stepper button { width: 40px; height: 40px; } .stepper b { min-width: 32px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .own-toggle { width: 38px; height: 38px; }
+  input:not([type=checkbox]), select, textarea { font-size: 16px; min-height: 44px; } /* 16px stops iOS from zooming in */
+  .check input { width: 20px; height: 20px; }
+}
