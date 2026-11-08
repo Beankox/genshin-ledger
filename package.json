@@ -4,12 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/portraits.mjs",
+    "predev": "node scripts/fetch-portraits.mjs && node scripts/portraits.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/portraits.mjs",
+    "prebuild": "node scripts/fetch-portraits.mjs && node scripts/portraits.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "portraits": "node scripts/fetch-portraits.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.70.0",
