@@ -3,7 +3,7 @@ import { Download, Sparkles } from 'lucide-react';
 import type { Ledger } from '../hooks/useLedger';
 import type { Progress } from '../types';
 import { clamp, requiredAscension } from '../lib/ledger';
-import { collectHashes, parseEnka, parseGood, parseHoyolab } from '../lib/importers';
+import { collectHashes, parseEnka, parseGood } from '../lib/importers';
 import type { Imported, ParseResult } from '../lib/importers';
 import { Panel } from '../components/Controls';
 
@@ -23,14 +23,6 @@ const HTTP_ERRORS: Record<number, string> = {
   429: 'Too many requests right now. Wait a minute and try again.',
 };
 
-const HOYO_ERRORS: Record<number, string> = {
-  [-100]: 'HoYoLAB did not accept the cookie. Copy ltuid_v2 and ltoken_v2 again (log in to hoyolab.com first).',
-  [-10001]: 'HoYoLAB rejected the request signature or cookie. Try the other copy of the cookies.',
-  10102: 'Battle Chronicle is private. Turn it on in HoYoLAB, then try again.',
-  10101: 'HoYoLAB daily request limit reached. Try again tomorrow.',
-  1034: 'HoYoLAB wants a captcha or verification. Open hoyolab.com, open your Battle Chronicle, complete any check, then retry.',
-};
-
 export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: string, error?: boolean) => void }) {
   const { characters, patchProgress } = ledger;
   const nameOf = new Map(characters.map((c) => [c.id, c.name]));
@@ -43,8 +35,6 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
   const [source, setSource] = useState('');
   const [withBuild, setWithBuild] = useState(true);
   const [q, setQ] = useState('');
-  const [ltuid, setLtuid] = useState('');
-  const [ltoken, setLtoken] = useState('');
 
   const show = (r: ParseResult, from: string) => {
     const known = r.items.filter((i) => nameOf.has(i.id));
@@ -77,27 +67,6 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
       if (hashes.length && !names) setError('Characters were found, but weapon and artifact names could not be loaded, so only their levels, constellations and talents will be imported.');
     } catch (e) {
       setError(e instanceof TypeError ? 'Could not reach Enka.Network (you may be offline, or the browser blocked the request). You can still import a scanner file below.' : (e as Error).message);
-    } finally { setBusy(false); }
-  };
-
-  const fetchRoster = async () => {
-    const id = uid.replace(/\D/g, '');
-    if (id.length < 9) { setError('A UID has 9 digits, for example 800123456.'); return; }
-    if (!ltuid.trim() || !ltoken.trim()) { setError('Paste both cookie values (ltuid_v2 and ltoken_v2).'); return; }
-    setBusy(true); setError('');
-    try {
-      const res = await fetch(`${ENKA_PROXY.replace(/\/$/, '')}/roster`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Ltuid': ltuid.trim(), 'X-Ltoken': ltoken.trim() },
-        body: JSON.stringify({ uid: id }),
-      });
-      const data = await res.json();
-      if (data?.retcode !== 0) throw new Error(HOYO_ERRORS[data?.retcode] ?? `HoYoLAB error ${data?.retcode}: ${data?.message}`);
-      const r = parseHoyolab(data, loadIds());
-      if (!r.items.length) throw new Error('HoYoLAB returned no characters.');
-      show(r, `HoYoLAB ${id}`);
-    } catch (e) {
-      setError(e instanceof TypeError ? 'Could not reach your Worker.' : (e as Error).message);
     } finally { setBusy(false); }
   };
 
@@ -167,21 +136,17 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
         </Panel>
 
         <Panel title="From a scanner file (everyone)" icon={<Sparkles size={18} />}>
-          <p className="muted small">To bring in <b>all</b> characters at once, export a <b>Genshin Optimizer (GOOD) .json</b> file with a scanner such as Inventory Kamera or Irminsul, then choose it here. Weapons and artifacts come along too, for every character you own.</p>
+          <p className="muted small">The only way to bring in <b>all</b> your characters, weapons and artifacts at once. Your account login is never needed.</p>
+          <ol className="muted small" style={{ margin: '8px 0', paddingLeft: 20 }}>
+            <li>Install a scanner such as <b>Irminsul</b> or <b>Inventory Kamera</b> and follow its instructions to scan your game.</li>
+            <li>Export the result as a <b>Genshin Optimizer (GOOD) .json</b> file.</li>
+            <li>Choose that file below, then pick which characters to import.</li>
+          </ol>
           <label className="mt">Choose a .json file
             <input type="file" accept=".json,application/json" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
         </Panel>
       </div>
-
-      <Panel title="Sync everything (HoYoLAB)" icon={<Download size={18} />}>
-        <p className="muted small">Brings in <b>every</b> character you own, with weapons and artifacts. Needs Battle Chronicle set to public in HoYoLAB. Your cookie goes only to your own Worker and is never saved. Type your UID in the box above first.</p>
-        <div className="row mt">
-          <input type="password" autoComplete="off" placeholder="ltuid_v2" aria-label="ltuid_v2" value={ltuid} onChange={(e) => setLtuid(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-          <input type="password" autoComplete="off" placeholder="ltoken_v2" aria-label="ltoken_v2" value={ltoken} onChange={(e) => setLtoken(e.target.value)} style={{ flex: 2, minWidth: 180 }} />
-          <button className="btn primary" onClick={() => void fetchRoster()} disabled={busy}>{busy ? 'Syncing…' : 'Sync all characters'}</button>
-        </div>
-      </Panel>
 
       {error && <p className="note" role="alert">{error}</p>}
 
