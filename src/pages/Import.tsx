@@ -59,12 +59,12 @@ export function Import({ ledger, notify }: { ledger: Ledger; notify: (msg: strin
       try { const r = await fetch(STORE_URL); if (r.ok) store = await r.json(); } catch { /* talents will be skipped */ }
       // weapon and artifact set names come from the relay (it looks them up, so the browser does not download a huge file)
       let names: Record<string, string> | null = null;
-      const hashes = collectHashes(data);
+      const hashes = collectHashes(data, store);
       if (ENKA_PROXY && hashes.length) {
         try { const r = await fetch(`${ENKA_PROXY.replace(/\/$/, '')}/names/${hashes.join(',')}`); if (r.ok) names = await r.json(); } catch { /* skipped below */ }
       }
-      show(parseEnka(data, store, names, loadIds()), `UID ${id}`);
-      if (hashes.length && !names) setError('Characters were found, but weapon and artifact names could not be loaded, so only their levels, constellations and talents will be imported.');
+      show(parseEnka(data, store, names, loadIds(), characters), `UID ${id}`);
+      if (hashes.length && !names) setError('Characters were found, but weapon and artifact names could not be loaded, so only their levels, constellations and talents will be imported, and characters this app does not know by ID may need to be picked by hand.');
     } catch (e) {
       setError(e instanceof TypeError ? 'Could not reach Enka.Network (you may be offline, or the browser blocked the request). You can still import a scanner file below.' : (e as Error).message);
     } finally { setBusy(false); }
