@@ -240,6 +240,9 @@ main { min-width: 0; }
 @media (max-width: 820px) { .side-foot { display: none; } }
 
 /* ---------- Import ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { font: inherit; font-size: 14px; padding: 5px 13px; border-radius: 99px; border: 1px solid var(--line); background: var(--ivory); color: var(--ink); cursor: pointer; }
+.chip:hover { border-color: var(--gold); } .chip.on { background: var(--gold); color: #fff; border-color: var(--gold); }
 .row input[type=text], .row input[inputmode] { width: auto; }
 .farm-list .check { align-items: flex-start; } .farm-list .check span { display: block; }
 input[type=file] { padding: 8px; background: var(--parch); border-style: dashed; cursor: pointer; }
