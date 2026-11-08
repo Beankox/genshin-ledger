@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, Database, LayoutDashboard, UserCheck, UserMinus, Users, TriangleAlert } from 'lucide-react';
+import { CalendarDays, Database, Download, LayoutDashboard, UserCheck, UserMinus, Users, TriangleAlert } from 'lucide-react';
 import { useLedger } from './hooks/useLedger';
 import { useHashRoute } from './hooks/useHashRoute';
 import { Dashboard } from './pages/Dashboard';
@@ -7,11 +7,12 @@ import { Collection } from './pages/Collection';
 import { CharacterDetail } from './pages/CharacterDetail';
 import { Data } from './pages/Data';
 import { Farming } from './pages/Farming';
+import { Import } from './pages/Import';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
 const titleFor = (path: string) =>
-  path === '/characters' ? 'All characters' : path === '/owned' ? 'Owned' : path === '/unowned' ? 'Unowned' : path === '/data' ? 'Data' : path === '/farming' ? 'Farming planner' : path.startsWith('/character/') ? 'Character' : 'Dashboard';
+  path === '/characters' ? 'All characters' : path === '/owned' ? 'Owned' : path === '/unowned' ? 'Unowned' : path === '/data' ? 'Data' : path === '/farming' ? 'Farming planner' : path === '/import' ? 'Import' : path.startsWith('/character/') ? 'Character' : 'Dashboard';
 
 interface InstallEvent extends Event { prompt(): Promise<void> }
 
@@ -44,6 +45,7 @@ export default function App() {
     { href: '#/owned', label: 'Owned', short: 'Owned', icon: <UserCheck size={19} />, n: owned, active: path === '/owned' },
     { href: '#/unowned', label: 'Unowned', short: 'Unowned', icon: <UserMinus size={19} />, n: total - owned, active: path === '/unowned' },
     { href: '#/farming', label: 'Farming planner', short: 'Farm', icon: <CalendarDays size={19} />, active: path === '/farming' },
+    { href: '#/import', label: 'Import', short: 'Import', icon: <Download size={19} />, active: path === '/import' },
     { href: '#/data', label: 'Data', short: 'Data', icon: <Database size={19} />, active: path === '/data' },
   ];
 
@@ -53,6 +55,7 @@ export default function App() {
   else if (path === '/owned') page = <Collection key="owned" ledger={ledger} mode="owned" />;
   else if (path === '/unowned') page = <Collection key="unowned" ledger={ledger} mode="unowned" />;
   else if (path === '/farming') page = <Farming ledger={ledger} />;
+  else if (path === '/import') page = <Import ledger={ledger} notify={notify} />;
   else if (path === '/data') page = <Data ledger={ledger} notify={notify} />;
   else if (path.startsWith('/character/')) page = <CharacterDetail key={path} ledger={ledger} id={safeDecode(path.slice(11))} notify={notify} />;
   else page = <Dashboard ledger={ledger} />;
