@@ -108,11 +108,11 @@ export function Farming({ ledger }: { ledger: Ledger }) {
             <Panel title="Talent books" icon={<Sparkles size={18} />}>
               <GroupList groups={d.books} fmt={bookText} badge={bookBadge} />
             </Panel>
-            <Panel title="Weekly boss drops"><GroupList groups={d.weekly} fmt={one} /></Panel>
-            <Panel title="Boss drops"><GroupList groups={d.boss} fmt={one} /></Panel>
-            <Panel title="Local specialties"><GroupList groups={d.local} fmt={one} /></Panel>
-            <Panel title="Ascension gems"><GroupList groups={d.gems} fmt={(g) => parts(GEM_TIERS, g.counts)} /></Panel>
-            <Panel title="Enemy drops"><GroupList groups={d.enemy} fmt={(g) => parts(['1★', '2★', '3★'], g.counts)} /></Panel>
+            <Panel title="Weekly boss drops" icon={<Sparkles size={18} />}><GroupList groups={d.weekly} fmt={one} /></Panel>
+            <Panel title="Boss drops" icon={<Sparkles size={18} />}><GroupList groups={d.boss} fmt={one} /></Panel>
+            <Panel title="Local specialties" icon={<Sparkles size={18} />}><GroupList groups={d.local} fmt={one} /></Panel>
+            <Panel title="Ascension gems" icon={<Sparkles size={18} />}><GroupList groups={d.gems} fmt={(g) => parts(GEM_TIERS, g.counts)} /></Panel>
+            <Panel title="Enemy drops" icon={<Sparkles size={18} />}><GroupList groups={d.enemy} fmt={(g) => parts(['1★', '2★', '3★'], g.counts)} /></Panel>
           </div>
           <p className="muted small" style={{ color: '#b9bde4' }}>Character EXP, and the enemy drops that talents use, are not counted.</p>
         </>
